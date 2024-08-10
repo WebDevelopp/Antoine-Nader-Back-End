@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Table</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .sortable:hover {
+            cursor: pointer;
+        }
+        .delete-button {
+            cursor: pointer;
+            color: red;
+        }
+    </style>
+</head>
+<body>
+<div class="p-4">
+    <div class="mb-4 flex space-x-4">
+        <input id="filterId" type="text" placeholder="Filter by ID" class="border p-2 rounded">
+        <input id="filterCategory" type="text" placeholder="Filter by Category Name" class="border p-2 rounded">
+        <button id="addButton" class="bg-blue-500 text-white px-4 py-2 rounded">Add</button>
+        <button id="deleteButton" class="bg-red-500 text-white px-4 py-2 rounded">Delete Selected</button>
+        <button id="sendDataButton" class="bg-green-500 text-white px-4 py-2 rounded">Send Data</button>
+    </div>
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input type="checkbox" id="selectAll">
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="id">ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="name">Category Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SEO Keyword</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            </tr>
+        </thead>
+        <tbody id="dataTable" class="bg-white divide-y divide-gray-200"></tbody>
+    </table>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dataTable = document.getElementById('dataTable');
+    const filterId = document.getElementById('filterId');
+    const filterCategory = document.getElementById('filterCategory');
+    const addButton = document.getElementById('addButton');
+    const deleteButton = document.getElementById('deleteButton');
+    const sendDataButton = document.getElementById('sendDataButton');
+    const selectAll = document.getElementById('selectAll');
+    let sortColumn = 'id';
+    let sortDirection = 'asc';
+    let items = [];
+
+    function fetchData() {
+        fetch('/admin/api/data.json')
+            .then(response => response.json())
+            .then(data => {
+                items = data.data.widgets.flatMap(widget =>
+                    widget.items.map(item => ({
+                        id: item.product_id,
+                        image: item.thumb,
+                        sku: item.sku,
+                        parent: widget.category,
+                        name: item.name,
+                        seoKeyword: item.seo_keyword,
+                        sortOrder: 0,
+                        status: 'Enabled'
+                    }))
+                ).filter(item => item.image);
+                updateTable();
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+                dataTable.innerHTML = '<tr><td colspan="9" class="px-6 py-4 text-center text-sm text-red-500">Error fetching data</td></tr>';
+            });
+    }
+
+    function updateTable() {
+        const filteredItems = items
+            .filter(item => (!filterId.value || item.id.includes(filterId.value)))
+            .filter(item => (!filterCategory.value || item.name.includes(filterCategory.value)));
+
+        const sortedItems = filteredItems.sort((a, b) => {
+            if (a[sortColumn] < b[sortColumn]) return sortDirection === 'asc' ? -1 : 1;
+            if (a[sortColumn] > b[sortColumn]) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        const rows = sortedItems.map(item => `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <input type="checkbox" data-id="${item.id}">
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.id}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <img src="${item.image}" alt="${item.name}" class="h-12">
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.sku}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Item</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.seoKeyword}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.sortOrder}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.status}</td>
+            </tr>
+        `).join('');
+        dataTable.innerHTML = rows;
+    }
+
+    filterId.addEventListener('input', updateTable);
+    filterCategory.addEventListener('input', updateTable);
+
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.addEventListener('click', function() {
+            const sortBy = this.getAttribute('data-sort');
+            if (sortColumn === sortBy) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = sortBy;
+                sortDirection = 'asc';
+            }
+            updateTable();
+        });
+    });
+
+    addButton.addEventListener('click', function() {
+        window.location.href = '/category/add';
+    });
+
+    deleteButton.addEventListener('click', function() {
+        const selectedIds = [...document.querySelectorAll('input[type="checkbox"]:checked')].map(cb => cb.getAttribute('data-id'));
+        selectedIds.forEach(id => {
+            fetch(`/category/delete?id=${id}`)
+                .then(() => fetchData())
+                .catch(error => console.error('Error deleting category:', error));
+        });
+    });
+
+    sendDataButton.addEventListener('click', function() {
+        sendAllData();
+    });
+
+    selectAll.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    });
+
+    function sendAllData() {
+        fetch('/category/add-multiple', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(items),
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('All data sent:', data);
+            alert('Data successfully sent to the database.');
+        })
+        .catch(error => {
+            console.error('Error sending all data:', error);
+        });
+    }
+
+    fetchData();
+});
+</script>
+</body>
+</html>
